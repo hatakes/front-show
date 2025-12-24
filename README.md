@@ -12,7 +12,7 @@
 - **针叶系统**：使用 `THREE.Points + ShaderMaterial` 渲染大量粒子。
 - **装饰物系统**：礼物盒、彩球、灯光、拍立得照片等装饰使用 `InstancedMesh` 提升性能。
 - **后期处理**：Bloom 阈值 `0.8`、强度 `1.2`，营造金色辉光。
-- **环境光**：使用 Lobby HDRI，营造高级质感。
+- **环境光**：使用本地 Lobby HDRI（`public/hdri/lobby.hdr`），避免依赖外网资源。
 
 ## 启动方式
 

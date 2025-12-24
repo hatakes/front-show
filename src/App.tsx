@@ -18,9 +18,9 @@ const App = () => {
           <color attach="background" args={["#081f19"]} />
           <ambientLight intensity={0.2} />
           <directionalLight position={[10, 12, 6]} intensity={1.3} color="#f7e5b2" />
-          <Suspense fallback={null}>
-            <Environment preset="lobby" />
-          </Suspense>
+        <Suspense fallback={null}>
+          <Environment files="/hdri/lobby.hdr" />
+        </Suspense>
           <GrandTreeScene chaosMode={chaosMode} handRotation={rotation} />
           <PostEffects />
         </Canvas>
