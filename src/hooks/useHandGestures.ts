@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Hands } from '@mediapipe/hands';
-import { Camera } from '@mediapipe/camera_utils';
+import type { Hands } from '@mediapipe/hands';
+import type { Camera } from '@mediapipe/camera_utils';
 
 export type GestureState = 'OPEN' | 'CLOSED' | 'NONE';
 
@@ -25,6 +25,7 @@ export const useHandGestures = () => {
   const handsRef = useRef<Hands | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const video = document.createElement('video');
     video.setAttribute('playsinline', 'true');
     video.style.position = 'fixed';
@@ -34,17 +35,7 @@ export const useHandGestures = () => {
     video.style.pointerEvents = 'none';
     document.body.appendChild(video);
 
-    const hands = new Hands({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
-
-    hands.setOptions({
-      maxNumHands: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6
-    });
-
-    hands.onResults((results) => {
+    const handleResults = (results: { multiHandLandmarks?: Array<Array<{ x: number; y: number; z: number }>> }) => {
       if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
         setActive(false);
         setGesture('NONE');
@@ -86,12 +77,37 @@ export const useHandGestures = () => {
         x: (normalized.y - 0.5) * 0.6,
         y: (normalized.x - 0.5) * 0.8
       });
-    });
-
-    handsRef.current = hands;
+    };
 
     const setupCamera = async () => {
       try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setActive(false);
+          return;
+        }
+
+        const [{ Hands: HandsCtor }, { Camera: CameraCtor }] = await Promise.all([
+          import('@mediapipe/hands'),
+          import('@mediapipe/camera_utils')
+        ]);
+
+        if (cancelled) return;
+
+        const hands = new HandsCtor({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 0,
+          selfieMode: true,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.6
+        });
+
+        hands.onResults(handleResults);
+        handsRef.current = hands;
+
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
@@ -101,12 +117,24 @@ export const useHandGestures = () => {
           audio: false
         });
 
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         video.srcObject = stream;
         await video.play();
 
-        const camera = new Camera(video, {
+        const camera = new CameraCtor(video, {
           onFrame: async () => {
-            await hands.send({ image: video });
+            if (cancelled) return;
+            try {
+              await hands.send({ image: video });
+            } catch (error) {
+              setActive(false);
+              cancelled = true;
+              camera.stop();
+            }
           },
           width: 640,
           height: 480
@@ -122,6 +150,7 @@ export const useHandGestures = () => {
     void setupCamera();
 
     return () => {
+      cancelled = true;
       cameraRef.current?.stop();
       handsRef.current?.close();
       const tracks = (video.srcObject as MediaStream | null)?.getTracks();
